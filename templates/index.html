@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Assistente da Barbearia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html { height: 100dvh; overflow: hidden; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center">
+    <div class="w-full max-w-md h-full bg-gray-50 flex flex-col shadow-2xl relative">
+        
+        <header class="bg-slate-900 text-white p-4 flex items-center shadow-md z-10">
+            <div class="w-10 h-10 bg-green-500 rounded-full flex justify-center items-center font-bold text-xl mr-3">💰</div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight">Agente Financeiro</h1>
+                <p class="text-xs text-green-400">Online</p>
+            </div>
+        </header>
+
+        <main id="chat-box" class="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide pb-20">
+            <div class="flex flex-col items-start">
+                <div class="bg-white text-gray-800 p-3 rounded-2xl rounded-tl-none shadow-sm max-w-[85%] border border-gray-200">
+                    Fala chefe! Pode mandar o atendimento de hoje.
+                </div>
+            </div>
+        </main>
+
+        <footer class="bg-white p-3 border-t border-gray-200 flex items-center absolute bottom-0 w-full max-w-md">
+            <input type="text" id="user-input" autocomplete="off" 
+                class="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none focus:ring-2 focus:ring-slate-900 transition" 
+                placeholder="Ex: Corte do Diego 60 reais...">
+            <button id="btn-enviar" class="ml-2 bg-slate-900 text-white rounded-full p-2 w-10 h-10 flex justify-center items-center hover:bg-slate-800">
+                ➤
+            </button>
+        </footer>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const btnEnviar = document.getElementById('btn-enviar');
+
+        // AS VARIÁVEIS DE MEMÓRIA DO CHAT
+        let estadoChat = 'normal'; 
+        let cacheOpcoes = [];
+        let cacheDadosIA = null;
+
+        function adicionarMensagem(texto, remetente) {
+            const div = document.createElement('div');
+            div.className = `flex flex-col ${remetente === 'user' ? 'items-end' : 'items-start'} animate-fade-in`;
+            let estiloBalao = remetente === 'user' 
+                ? 'bg-slate-800 text-white rounded-2xl rounded-tr-none' 
+                : 'bg-white text-gray-800 rounded-2xl rounded-tl-none border border-gray-200';
+            
+            div.innerHTML = `<div class="p-3 shadow-sm max-w-[90%] ${estiloBalao}">${texto}</div>`;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function enviarParaBackend(payload) {
+            const idDigitando = "digitando-" + Date.now();
+            const div = document.createElement('div');
+            div.id = idDigitando;
+            div.className = `flex flex-col items-start animate-fade-in`;
+            div.innerHTML = `<div class="p-3 shadow-sm max-w-[90%] bg-white text-gray-400 rounded-2xl rounded-tl-none border border-gray-200 italic text-sm">O agente está pensando...</div>`;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            try {
+                const response = await fetch('/api/mensagem/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                document.getElementById(idDigitando).remove();
+
+                if (data.tipo === 'tira_teima') {
+                    // ATIVA A MEMÓRIA: Salva as opções e os dados da IA para o próximo turno
+                    estadoChat = 'tira_teima';
+                    cacheOpcoes = data.opcoes;
+                    cacheDadosIA = data.dados_ia;
+
+                    let textoOpcoes = data.resposta + '<br><br>';
+                    data.opcoes.forEach((opcao, index) => {
+                        textoOpcoes += `<strong>${index + 1}</strong> - ${opcao.nome}<br>`;
+                    });
+                    adicionarMensagem(textoOpcoes, 'bot');
+                } else {
+                    // RESETA A MEMÓRIA: Sucesso ou erro, o chat volta ao estado normal
+                    estadoChat = 'normal';
+                    adicionarMensagem(data.resposta, 'bot');
+                }
+
+            } catch (error) {
+                document.getElementById(idDigitando).remove();
+                adicionarMensagem("Ocorreu um erro na conexão com o servidor.", 'bot');
+                console.error(error);
+            }
+        }
+
+        function enviar() {
+            const texto = userInput.value.trim();
+            if (!texto) return;
+            
+            adicionarMensagem(texto, 'user');
+            userInput.value = '';
+
+            // LÓGICA DO TIRA-TEIMA: Se o chat estiver aguardando a seleção de um cliente
+            if (estadoChat === 'tira_teima') {
+                const escolha = parseInt(texto);
+                if (!isNaN(escolha) && escolha > 0 && escolha <= cacheOpcoes.length) {
+                    const clienteEscolhido = cacheOpcoes[escolha - 1];
+                    
+                    // Pula o Gemini e manda a confirmação final direto para a View do Django
+                    enviarParaBackend({
+                        cliente_id_confirmado: clienteEscolhido.id,
+                        dados_ia: cacheDadosIA
+                    });
+                } else {
+                    adicionarMensagem("Por favor, digite apenas o número correto da lista.", 'bot');
+                }
+                return;
+            }
+
+            // Fluxo normal (nova mensagem de atendimento)
+            enviarParaBackend({ mensagem: texto });
+        }
+
+        btnEnviar.addEventListener('click', enviar);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') enviar();
+        });
+    </script>
+</body>
+</html>

@@ -19,4 +19,18 @@ class FinanceiroService:
             return {"status": "multiplos", "opcoes": lista}
         else:
             return {"status": "novo", "termo": termo_busca}
+
+    @staticmethod
+    def registrar_transacao(cliente_id, valor, descricao, tipo, status):
+        """Cria o registro financeiro real no banco de dados."""
+        # Se for despesa da barbearia, o cliente_id vem como None
+        cliente = Cliente.objects.get(id=cliente_id) if cliente_id else None
+        
+        Transacao.objects.create(
+            cliente=cliente,
+            valor=valor,
+            descricao=descricao,
+            tipo=tipo,
+            status=status
+        )
         

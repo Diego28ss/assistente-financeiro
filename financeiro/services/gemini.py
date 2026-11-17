@@ -1,10 +1,12 @@
 import os
 import json
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Inicializa o cliente normalmente usando a nova chave (AIza...)
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 def interpretar_mensagem(mensagem_usuario):
     prompt = f"""
@@ -19,8 +21,11 @@ def interpretar_mensagem(mensagem_usuario):
     Retorne APENAS o JSON.
     """
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
+        # Usando a versão mais avançada, rápida e esperta disponível na sua chave
+        response = client.models.generate_content(
+            model='gemini-3.5-flash',
+            contents=prompt
+        )
         texto_limpo = response.text.replace('```json', '').replace('```', '').strip()
         return json.loads(texto_limpo)
     except Exception as e:
