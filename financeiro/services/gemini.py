@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Inicializa o cliente normalmente usando a nova chave (AIza...)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 def interpretar_mensagem(mensagem_usuario):
@@ -21,9 +20,9 @@ def interpretar_mensagem(mensagem_usuario):
     Retorne APENAS o JSON.
     """
     try:
-        # Usando a versão mais avançada, rápida e esperta disponível na sua chave
+        # PISTA LIVRE: Usando o modelo Lite para evitar filas e ter resposta instantânea
         response = client.models.generate_content(
-            model='gemini-3.5-flash',
+            model='gemini-3.5-flash-lite',
             contents=prompt
         )
         texto_limpo = response.text.replace('```json', '').replace('```', '').strip()
