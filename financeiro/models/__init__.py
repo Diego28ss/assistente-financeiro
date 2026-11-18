@@ -1,1 +1,1 @@
-from .base import Cliente, Transacao
+from .base import PerfilUsuario, Cliente, Transacao, MensagemChat
